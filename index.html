@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>覇者の塔 - Web版</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>👑 覇者の塔 - Web版（基盤）</h1>
+  </header>
+
+  <main>
+    <!-- ステータス表示 -->
+    <section id="status-section">
+      <h2>プレイヤーステータス</h2>
+      <div class="status-grid">
+        <div><span class="label">名前:</span> <span id="player-name"></span></div>
+        <div><span class="label">階層:</span> <span id="player-floor"></span></div>
+        <div><span class="label">攻撃力:</span> <span id="player-attack"></span></div>
+        <div><span class="label">階級:</span> <span id="player-rank"></span></div>
+        <div><span class="label">ソロ討伐数:</span> <span id="player-solo-clear"></span></div>
+        <div><span class="label">マルチ討伐数:</span> <span id="player-multi-clear"></span></div>
+        <div><span class="label">コイン:</span> <span id="player-coins"></span></div>
+        <div><span class="label">勲章:</span> <span id="player-medals"></span></div>
+      </div>
+
+      <h3>ガチャチケット</h3>
+      <ul>
+        <li>初級: <span id="ticket-beginner"></span> 枚</li>
+        <li>中級: <span id="ticket-normal"></span> 枚</li>
+        <li>上級: <span id="ticket-advanced"></span> 枚</li>
+        <li>覇者: <span id="ticket-hasha"></span> 枚</li>
+      </ul>
+
+      <button id="reset-data-btn">データリセット（テスト用）</button>
+    </section>
+
+    <!-- ソロバトル -->
+    <section id="solo-section">
+      <h2>ソロバトル</h2>
+      <p>簡易版のソロ戦です。敵を倒してコインを集めましょう。</p>
+      <button id="solo-battle-btn">ソロモンスターと戦う</button>
+      <div id="solo-result" class="log-box"></div>
+    </section>
+
+    <!-- ガチャ -->
+    <section id="gacha-section">
+      <h2>ガチャ</h2>
+      <p>まずは<strong>初級ガチャのみ</strong>実装しています。（コインを消費）</p>
+      <button id="gacha-beginner-btn">初級ガチャを引く</button>
+      <div id="gacha-result" class="log-box"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>覇者の塔 Web版 基盤 / 後で Discord Bot と連携予定</p>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>
