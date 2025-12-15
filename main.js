@@ -12,6 +12,63 @@ const RANK_ORDER = [
   "覇者",
 ];
 
+// 討伐依頼リスト（掲示板に8枚貼る）
+const QUESTS = [
+  {
+    id: "slime_forest",
+    title: "森のスライム退治",
+    detail: "近くの森でスライムが増えている。初心者向けの依頼。",
+    recommended: "★1",
+  },
+  {
+    id: "wolves_hill",
+    title: "丘のオオカミ掃討",
+    detail: "丘に住み着いたオオカミを追い払ってほしい。",
+    recommended: "★2",
+  },
+  {
+    id: "bats_cave",
+    title: "洞窟コウモリ討伐",
+    detail: "洞窟の奥からコウモリの群れが飛び出してくる。",
+    recommended: "★2",
+  },
+  {
+    id: "ghost_ruins",
+    title: "古代遺跡の亡霊退治",
+    detail: "夜な夜な現れる亡霊の噂が広まっている。",
+    recommended: "★3",
+  },
+  {
+    id: "golem_swamp",
+    title: "湿地帯のゴーレム",
+    detail: "湿地帯を守るはずのゴーレムが暴走している。",
+    recommended: "★3",
+  },
+  {
+    id: "dragon_lake",
+    title: "湖の小竜討伐",
+    detail: "湖に棲みついた小竜が船を沈めているらしい。",
+    recommended: "★4",
+  },
+  {
+    id: "tower_guard",
+    title: "塔の番人討伐",
+    detail: "覇者の塔の中層を守る番人の討伐依頼。",
+    recommended: "★4",
+  },
+  {
+    id: "mimic_treasure",
+    title: "ミミック宝箱処理",
+    detail: "宝箱に化けた魔物ミミックが冒険者を襲っている。",
+    recommended: "★？",
+  },
+];
+
+// 現在進行中のバトル＆受注中の依頼
+let currentBattle = null;
+let currentBattleQuest = null;
+
+
 // プレイヤー初期データ
 function createDefaultPlayer() {
   return {
@@ -132,9 +189,6 @@ function updateRank(player) {
 
 // ==== バトル関連 ====
 
-// 現在のバトル状態
-let currentBattle = null;
-
 // プレイヤー最大HP（簡易計算）
 function calcPlayerMaxHp(player) {
   return 30 + Math.floor(player.attack / 2);
@@ -158,24 +212,34 @@ function createEnemyForFloor(floor) {
 
 // バトル開始（敵がいない状態で「たたかう」が押されたら呼ぶ）
 function startBattle(player) {
-  const enemy = createEnemyForFloor(player.floor);
+  const logEl = document.getElementById("solo-result");
+
+  if (!currentBattleQuest) {
+    logEl.textContent = "まずは掲示板から討伐依頼を選んでください。";
+    return;
+  }
+
+  const enemy = createEnemyForFloor(player.floor); // 難易度は今は階層ベースのまま
   currentBattle = {
     floor: player.floor,
     turn: 1,
     finished: false,
     playerHp: calcPlayerMaxHp(player),
+    questId: currentBattleQuest.id,
+    questTitle: currentBattleQuest.title,
     ...enemy,
   };
 
-  const logEl = document.getElementById("solo-result");
   let log = "";
   log += `=== ソロバトル開始 ===\n`;
+  log += `討伐依頼『${currentBattle.questTitle}』\n`;
   log += `【敵】${enemy.enemyName}（HP: ${enemy.enemyHpMax}, 攻撃力: ${enemy.enemyAtk}）\n`;
   log += `【自分】攻撃力: ${player.attack}, HP: ${currentBattle.playerHp}\n`;
   logEl.textContent = log;
 
   updateUI(player);
 }
+
 
 // 1ターン分の「たたかう」
 function handleBattleFight(player) {
@@ -223,6 +287,64 @@ function handleBattleFight(player) {
   updateUI(player);
 }
 
+// 掲示板に討伐依頼カードを並べる
+function renderQuestBoard() {
+  const listEl = document.getElementById("quest-list");
+  if (!listEl) return;
+
+  listEl.innerHTML = "";
+  QUESTS.forEach((q) => {
+    const card = document.createElement("button");
+    card.className = "quest-card";
+    card.dataset.questId = q.id;
+    card.innerHTML = `
+      <div class="quest-title">${q.title}</div>
+      <div class="quest-body">${q.detail}</div>
+      <div class="quest-footer">${q.recommended}</div>
+    `;
+    card.addEventListener("click", () => {
+      selectQuest(q.id);
+    });
+    listEl.appendChild(card);
+  });
+}
+
+// 依頼選択
+function selectQuest(questId) {
+  const listEl = document.getElementById("quest-list");
+  const logEl = document.getElementById("solo-result");
+  const player = loadPlayer();
+
+  currentBattleQuest = QUESTS.find((q) => q.id === questId) || null;
+  currentBattle = null; // 新しい依頼を受けたのでバトル状態はリセット
+
+  if (listEl) {
+    Array.from(listEl.children).forEach((card) => {
+      card.classList.toggle("selected", card.dataset.questId === questId);
+    });
+  }
+
+  if (currentBattleQuest) {
+    logEl.textContent =
+      `掲示板から『${currentBattleQuest.title}』の討伐依頼を受けた！\n` +
+      `「たたかう」で戦闘開始。`;
+  } else {
+    logEl.textContent = "";
+  }
+
+  updateUI(player);
+}
+
+// 依頼選択のハイライト解除
+function clearQuestSelection() {
+  const listEl = document.getElementById("quest-list");
+  if (!listEl) return;
+  Array.from(listEl.children).forEach((card) => {
+    card.classList.remove("selected");
+  });
+}
+
+
 // 勝利時処理
 function finishBattleVictory(player, battle, log) {
   const logEl = document.getElementById("solo-result");
@@ -260,6 +382,8 @@ function finishBattleVictory(player, battle, log) {
   }
 
   battle.finished = true;
+  currentBattleQuest = null;      // 依頼も完了
+  clearQuestSelection(); 
   logEl.textContent = log;
   savePlayer(player);
   updateUI(player);
@@ -273,6 +397,8 @@ function finishBattleDefeat(player, battle, log) {
   log += `\n【結果】敗北……。しかしわずかなコイン +${consolation} を拾った。\n`;
 
   battle.finished = true;
+  currentBattleQuest = null;      // 依頼失敗扱い
+  clearQuestSelection(); 
   logEl.textContent = log;
   savePlayer(player);
   updateUI(player);
@@ -291,6 +417,8 @@ function handleBattleRun(player) {
   log += `\nあなたは戦いから逃げ出した！\n`;
   log += `【結果】戦闘終了。特に報酬はありません。\n`;
   currentBattle.finished = true;
+  currentBattleQuest = null;      // 依頼キャンセル扱い
+  clearQuestSelection();          // ハイライト解除
 
   logEl.textContent = log;
   savePlayer(player);
@@ -529,6 +657,10 @@ window.addEventListener("DOMContentLoaded", () => {
   updateUI(player);
 
   setupScreenSwitching();
+  
+  renderQuestBoard();  // ★掲示板を生成
+  setupScreenSwitching();
+
 
   // バトルコマンド
   document.getElementById("battle-cmd-fight").addEventListener("click", () => {

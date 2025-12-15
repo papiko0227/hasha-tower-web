@@ -52,9 +52,17 @@
       <button id="reset-data-btn">データリセット（テスト用）</button>
     </section>
 
-    <!-- バトル画面（ドラクエ風） -->
+    <!-- バトル画面（掲示板＋ドラクエ風） -->
     <section class="screen" data-screen="battle" id="screen-battle">
       <h2>バトル</h2>
+
+      <!-- 討伐依頼掲示板 -->
+      <div class="quest-board">
+        <div class="battle-title">討伐依頼掲示板</div>
+        <div class="quest-list" id="quest-list">
+          <!-- JS から討伐依頼カードを8枚生成します -->
+        </div>
+      </div>
 
       <!-- 上部：プレイヤー＆敵のステータス表示 -->
       <div class="battle-status-window">
@@ -80,9 +88,6 @@
         <div class="battle-command-list">
           <button id="battle-cmd-fight">たたかう</button>
           <button id="battle-cmd-run">にげる</button>
-          <!-- 将来用：とくぎ / どうぐ など -->
-          <!-- <button disabled>とくぎ（準備中）</button> -->
-          <!-- <button disabled>どうぐ（準備中）</button> -->
         </div>
       </div>
 
@@ -93,10 +98,11 @@
       </div>
 
       <p class="hint">
-        ※ バトル開始時は「たたかう」を押すと敵が出現します。<br>
+        ※ まず掲示板から討伐依頼を選び、「たたかう」で戦闘開始します。<br>
         敵を倒すとコインや強化素材を入手し、まれに階層が上がります。
       </p>
     </section>
+
 
     <!-- ガチャ画面 -->
     <section class="screen" data-screen="gacha" id="screen-gacha">
