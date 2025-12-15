@@ -7,13 +7,21 @@
 </head>
 <body>
   <header>
-    <h1>👑 覇者の塔 - Web版（v1基盤）</h1>
+    <h1>👑 覇者の塔 - Web版</h1>
   </header>
 
+  <!-- 画面切り替え用ナビゲーション -->
+  <nav id="main-nav">
+    <button data-screen-target="status">ステータス</button>
+    <button data-screen-target="battle">バトル</button>
+    <button data-screen-target="gacha">ガチャ</button>
+    <button data-screen-target="help">説明</button>
+  </nav>
+
   <main>
-    <!-- ステータス表示 -->
-    <section id="status-section">
-      <h2>プレイヤーステータス</h2>
+    <!-- ステータス画面 -->
+    <section class="screen active" data-screen="status" id="screen-status">
+      <h2>ステータス</h2>
       <div class="status-grid">
         <div><span class="label">名前:</span> <span id="player-name"></span></div>
         <div><span class="label">現在階層:</span> <span id="player-floor"></span></div>
@@ -35,22 +43,65 @@
         <li>覇者: <span id="ticket-hasha"></span> 枚</li>
       </ul>
 
+      <h3>剣の強化</h3>
+      <p>強化素材 3個 → 攻撃力 +1</p>
+      <button id="upgrade-sword-btn">剣を強化する</button>
+      <div id="upgrade-result" class="log-box"></div>
+
+      <hr>
       <button id="reset-data-btn">データリセット（テスト用）</button>
     </section>
 
-    <!-- ソロバトル -->
-    <section id="solo-section">
-      <h2>ソロバトル</h2>
-      <p>階層ごとに強くなる魔物と戦います。勝てばコインと強化素材が手に入ることがあります。</p>
-      <button id="solo-battle-btn">ソロモンスターと戦う</button>
-      <div id="solo-result" class="log-box"></div>
+    <!-- バトル画面（ドラクエ風） -->
+    <section class="screen" data-screen="battle" id="screen-battle">
+      <h2>バトル</h2>
+
+      <!-- 上部：プレイヤー＆敵のステータス表示 -->
+      <div class="battle-status-window">
+        <div class="battle-status-row">
+          <div class="battle-status-box">
+            <div class="battle-title">プレイヤー</div>
+            <div>HP: <span id="battle-player-hp"></span></div>
+            <div>攻撃力: <span id="battle-player-atk"></span></div>
+            <div>階層: <span id="battle-player-floor"></span></div>
+          </div>
+          <div class="battle-status-box">
+            <div class="battle-title">敵</div>
+            <div>名前: <span id="battle-enemy-name"></span></div>
+            <div>HP: <span id="battle-enemy-hp"></span> / <span id="battle-enemy-hp-max"></span></div>
+            <div>攻撃力: <span id="battle-enemy-atk"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 中央：コマンド選択（ドラクエ風） -->
+      <div class="battle-command-window">
+        <div class="battle-command-title">コマンド</div>
+        <div class="battle-command-list">
+          <button id="battle-cmd-fight">たたかう</button>
+          <button id="battle-cmd-run">にげる</button>
+          <!-- 将来用：とくぎ / どうぐ など -->
+          <!-- <button disabled>とくぎ（準備中）</button> -->
+          <!-- <button disabled>どうぐ（準備中）</button> -->
+        </div>
+      </div>
+
+      <!-- 下部：メッセージウィンドウ -->
+      <div class="battle-log-window">
+        <div class="battle-title">メッセージ</div>
+        <div id="solo-result" class="log-box"></div>
+      </div>
+
+      <p class="hint">
+        ※ バトル開始時は「たたかう」を押すと敵が出現します。<br>
+        敵を倒すとコインや強化素材を入手し、まれに階層が上がります。
+      </p>
     </section>
 
-    <!-- ガチャ -->
-    <section id="gacha-section">
+    <!-- ガチャ画面 -->
+    <section class="screen" data-screen="gacha" id="screen-gacha">
       <h2>ガチャ</h2>
-      <p>階級に応じて、引けるガチャの種類が増えます。</p>
-      <p>※ 現時点ではコイン消費で引きます（あとでチケット制・Discordロール連動に差し替え予定）。</p>
+      <p>階級に応じて引けるガチャが増えます。</p>
       <div class="gacha-buttons">
         <button id="gacha-beginner-btn">初級ガチャ（20コイン）</button>
         <button id="gacha-normal-btn">中級ガチャ（60コイン）</button>
@@ -60,18 +111,21 @@
       <div id="gacha-result" class="log-box"></div>
     </section>
 
-    <!-- 剣の強化 -->
-    <section id="upgrade-section">
-      <h2>剣の強化</h2>
-      <p>強化素材を消費して攻撃力を上げます。<br>
-         例：強化素材 3個 → 攻撃力 +1</p>
-      <button id="upgrade-sword-btn">剣を強化する</button>
-      <div id="upgrade-result" class="log-box"></div>
+    <!-- 説明画面 -->
+    <section class="screen" data-screen="help" id="screen-help">
+      <h2>説明</h2>
+      <p>このゲーム「覇者の塔」は、Discordサーバーと連携することを想定したブラウザゲームです。</p>
+      <ul>
+        <li>バトル：ソロで敵を倒してコイン・強化素材・階層を増やします。</li>
+        <li>ガチャ：コインを使って武器を入手し、攻撃力を強化します。</li>
+        <li>階級：最高到達階層に応じて階級が上がり、引けるガチャの種類が増えます。</li>
+        <li>将来：マルチボス戦やDiscordロール連動の覇者ガチャを追加予定。</li>
+      </ul>
     </section>
   </main>
 
   <footer>
-    <p>覇者の塔 Web版 v1基盤 / のちほど Discord Bot と連携予定</p>
+    <p>覇者の塔 Web版 / UI実験中</p>
   </footer>
 
   <script src="main.js"></script>

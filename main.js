@@ -1,9 +1,9 @@
-// ==== 覇者の塔 Web版：v1 基盤スクリプト ====
+// ==== 覇者の塔 Web版：コマンド選択バトル版 ====
 
-// ブラウザの localStorage に保存するキー
+// localStorageキー
 const STORAGE_KEY = "hasha_tower_player_v1";
 
-// ランク順（弱い→強い）
+// ランク順
 const RANK_ORDER = [
   "見習い冒険者",
   "一人前の剣士",
@@ -16,15 +16,15 @@ const RANK_ORDER = [
 function createDefaultPlayer() {
   return {
     name: "名無しの冒険者",
-    floor: 1,         // 現在の階層
-    maxFloor: 1,      // 最高到達階層
-    attack: 10,       // 剣の攻撃力
+    floor: 1,
+    maxFloor: 1,
+    attack: 10,
     rank: "見習い冒険者",
     soloClear: 0,
-    multiClear: 0,    // Web単体では使わないが、Discord連携用に残しておく
+    multiClear: 0,
     coins: 0,
-    medals: 0,        // マルチ報酬想定
-    upgradeStones: 0, // 剣強化用素材
+    medals: 0,
+    upgradeStones: 0,
     tickets: {
       beginner: 0,
       normal: 0,
@@ -34,7 +34,7 @@ function createDefaultPlayer() {
   };
 }
 
-// データ読み込み
+// データ読み込み・保存
 function loadPlayer() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
@@ -44,8 +44,6 @@ function loadPlayer() {
   }
   try {
     const parsed = JSON.parse(raw);
-
-    // フィールド拡張に備えてマージする
     const base = createDefaultPlayer();
     const merged = {
       ...base,
@@ -57,19 +55,18 @@ function loadPlayer() {
     };
     return merged;
   } catch (e) {
-    console.error("プレイヤーデータの読み込みに失敗しました。初期化します。", e);
+    console.error("プレイヤーデータ読み込み失敗。初期化します。", e);
     const p = createDefaultPlayer();
     savePlayer(p);
     return p;
   }
 }
 
-// データ保存
 function savePlayer(player) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(player));
 }
 
-// UIへ反映
+// UI反映
 function updateUI(player) {
   document.getElementById("player-name").textContent = player.name;
   document.getElementById("player-floor").textContent = player.floor;
@@ -86,164 +83,230 @@ function updateUI(player) {
   document.getElementById("ticket-normal").textContent = player.tickets.normal;
   document.getElementById("ticket-advanced").textContent = player.tickets.advanced;
   document.getElementById("ticket-hasha").textContent = player.tickets.hasha;
+
+  // バトル画面側のプレイヤーステータスも更新
+  const basePlayerHp = calcPlayerMaxHp(player);
+  document.getElementById("battle-player-hp").textContent =
+    currentBattle ? currentBattle.playerHp : basePlayerHp;
+  document.getElementById("battle-player-atk").textContent = player.attack;
+  document.getElementById("battle-player-floor").textContent = player.floor;
+
+  // 敵側
+  if (currentBattle && !currentBattle.finished) {
+    document.getElementById("battle-enemy-name").textContent = currentBattle.enemyName;
+    document.getElementById("battle-enemy-hp").textContent = currentBattle.enemyHp;
+    document.getElementById("battle-enemy-hp-max").textContent = currentBattle.enemyHpMax;
+    document.getElementById("battle-enemy-atk").textContent = currentBattle.enemyAtk;
+  } else {
+    document.getElementById("battle-enemy-name").textContent = "（敵はいない）";
+    document.getElementById("battle-enemy-hp").textContent = "-";
+    document.getElementById("battle-enemy-hp-max").textContent = "-";
+    document.getElementById("battle-enemy-atk").textContent = "-";
+  }
 }
 
-// ランダム整数ヘルパー
+// ランダム整数
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// ランクインデックス取得
+// ランク関係
 function rankIndex(rank) {
   const idx = RANK_ORDER.indexOf(rank);
   return idx === -1 ? 0 : idx;
 }
 
-// 指定ランク以上かどうか
 function hasRankAtLeast(player, requiredRank) {
   return rankIndex(player.rank) >= rankIndex(requiredRank);
 }
 
-// 最高到達階層に応じてランク更新
 function updateRank(player) {
   const f = player.maxFloor;
   let newRank = "見習い冒険者";
-
-  if (f >= 40) {
-    newRank = "覇者";
-  } else if (f >= 30) {
-    newRank = "塔の守護者";
-  } else if (f >= 20) {
-    newRank = "上級騎士";
-  } else if (f >= 10) {
-    newRank = "一人前の剣士";
-  } else {
-    newRank = "見習い冒険者";
-  }
-
+  if (f >= 40) newRank = "覇者";
+  else if (f >= 30) newRank = "塔の守護者";
+  else if (f >= 20) newRank = "上級騎士";
+  else if (f >= 10) newRank = "一人前の剣士";
   player.rank = newRank;
 }
 
-// ==== ソロバトル処理 ====
-//
-// ・階層に応じて敵HP/攻撃力が変化
-// ・プレイヤーHPは簡易的に「30 + 攻撃力の半分」
-// ・最大3ターンの殴り合い
+// ==== バトル関連 ====
 
-function handleSoloBattle(player) {
-  const logEl = document.getElementById("solo-result");
-  const floor = player.floor;
+// 現在のバトル状態
+let currentBattle = null;
 
-  // 敵ステータス
+// プレイヤー最大HP（簡易計算）
+function calcPlayerMaxHp(player) {
+  return 30 + Math.floor(player.attack / 2);
+}
+
+// 新しい敵を生成
+function createEnemyForFloor(floor) {
   const baseHp = 15 + floor * 5;
   const enemyHpMin = Math.floor(baseHp * 0.8);
   const enemyHpMax = Math.floor(baseHp * 1.2);
-  let enemyHp = randInt(enemyHpMin, enemyHpMax);
+  const enemyHp = randInt(enemyHpMin, enemyHpMax);
   const enemyAtk = 5 + floor * 2;
   const enemyName = `${floor}階の魔物`;
+  return {
+    enemyName,
+    enemyHp,
+    enemyHpMax: enemyHp,
+    enemyAtk,
+  };
+}
 
-  // プレイヤーHP（戦闘ごとに全快）
-  const basePlayerHp = 30 + Math.floor(player.attack / 2);
-  let playerHp = basePlayerHp;
+// バトル開始（敵がいない状態で「たたかう」が押されたら呼ぶ）
+function startBattle(player) {
+  const enemy = createEnemyForFloor(player.floor);
+  currentBattle = {
+    floor: player.floor,
+    turn: 1,
+    finished: false,
+    playerHp: calcPlayerMaxHp(player),
+    ...enemy,
+  };
 
-  let log = `=== ソロバトル ===\n`;
-  log += `【敵】${enemyName}（HP: ${enemyHp}, 攻撃力: ${enemyAtk}）\n`;
-  log += `【自分】攻撃力: ${player.attack}, HP: ${playerHp}\n\n`;
+  const logEl = document.getElementById("solo-result");
+  let log = "";
+  log += `=== ソロバトル開始 ===\n`;
+  log += `【敵】${enemy.enemyName}（HP: ${enemy.enemyHpMax}, 攻撃力: ${enemy.enemyAtk}）\n`;
+  log += `【自分】攻撃力: ${player.attack}, HP: ${currentBattle.playerHp}\n`;
+  logEl.textContent = log;
 
-  let turn = 1;
-  while (turn <= 3 && enemyHp > 0 && playerHp > 0) {
-    log += `--- ターン ${turn} ---\n`;
+  updateUI(player);
+}
 
-    // プレイヤーの攻撃
-    const playerDmg = player.attack + randInt(0, floor);
-    enemyHp -= playerDmg;
-    if (enemyHp < 0) enemyHp = 0;
-    log += `あなたの攻撃！ → ${playerDmg} ダメージ（敵HP: ${enemyHp}）\n`;
+// 1ターン分の「たたかう」
+function handleBattleFight(player) {
+  const logEl = document.getElementById("solo-result");
 
-    if (enemyHp <= 0) {
-      log += `敵を倒した！\n`;
-      break;
-    }
-
-    // 敵の反撃
-    const enemyDmg = enemyAtk + randInt(0, Math.max(0, Math.floor(floor / 2)));
-    playerHp -= enemyDmg;
-    if (playerHp < 0) playerHp = 0;
-    log += `敵の反撃！ → ${enemyDmg} ダメージ（自分HP: ${playerHp}）\n`;
-
-    if (playerHp <= 0) {
-      log += `力尽きてしまった……。\n`;
-      break;
-    }
-
-    turn += 1;
-    log += "\n";
+  // バトルがまだなければ新規開始
+  if (!currentBattle || currentBattle.finished) {
+    startBattle(player);
+    return;
   }
 
-  // 戦闘結果判定
-  if (enemyHp <= 0 && playerHp > 0) {
-    // 勝利
-    const coinGain = 10 + floor * 3 + randInt(0, 5);
-    player.coins += coinGain;
-    player.soloClear += 1;
+  const b = currentBattle;
+  let log = logEl.textContent || "";
 
-    log += `\n【結果】勝利！ コイン +${coinGain}\n`;
+  log += `\n--- ターン ${b.turn} ---\n`;
 
-    // 強化素材ドロップ（30%）
-    if (Math.random() < 0.3) {
-      player.upgradeStones += 1;
-      log += `強化素材を 1個 手に入れた！ （合計: ${player.upgradeStones}）\n`;
-    }
+  // プレイヤーの攻撃
+  const playerDmg = player.attack + randInt(0, b.floor);
+  b.enemyHp -= playerDmg;
+  if (b.enemyHp < 0) b.enemyHp = 0;
+  log += `あなたの攻撃！ → ${playerDmg} ダメージ（敵HP: ${b.enemyHp}）\n`;
 
-    // 階層アップ（30%）
-    let floorUp = false;
-    if (Math.random() < 0.3) {
-      player.floor += 1;
-      floorUp = true;
-      log += `覇者の塔の階層が 1 上がった！ → 現在: ${player.floor} 階\n`;
-    }
-
-    // 最高到達階層更新
-    if (player.floor > player.maxFloor) {
-      player.maxFloor = player.floor;
-      log += `最高到達階層を更新！ → ${player.maxFloor} 階\n`;
-    }
-
-    // ランク更新
-    const oldRank = player.rank;
-    updateRank(player);
-    if (oldRank !== player.rank) {
-      log += `階級が '${oldRank}' から '${player.rank}' に昇格した！\n`;
-    }
-  } else if (playerHp <= 0) {
-    // 敗北
-    const consolation = 3;
-    player.coins += consolation;
-    log += `\n【結果】敗北……。しかしわずかなコイン +${consolation} を拾った。\n`;
-  } else {
-    // 引き分け（どちらも生きているままターン終了）
-    const coinGain = 5;
-    player.coins += coinGain;
-    log += `\n【結果】決着がつかなかった……。コイン +${coinGain}\n`;
+  // 敵撃破？
+  if (b.enemyHp <= 0) {
+    log += `敵を倒した！\n`;
+    finishBattleVictory(player, b, log);
+    return;
   }
+
+  // 敵の反撃
+  const enemyDmg = b.enemyAtk + randInt(0, Math.max(0, Math.floor(b.floor / 2)));
+  b.playerHp -= enemyDmg;
+  if (b.playerHp < 0) b.playerHp = 0;
+  log += `敵の反撃！ → ${enemyDmg} ダメージ（自分HP: ${b.playerHp}）\n`;
+
+  // プレイヤー死亡？
+  if (b.playerHp <= 0) {
+    log += `力尽きてしまった……。\n`;
+    finishBattleDefeat(player, b, log);
+    return;
+  }
+
+  b.turn += 1;
+  logEl.textContent = log;
+  updateUI(player);
+}
+
+// 勝利時処理
+function finishBattleVictory(player, battle, log) {
+  const logEl = document.getElementById("solo-result");
+
+  const floor = battle.floor;
+  const coinGain = 10 + floor * 3 + randInt(0, 5);
+  player.coins += coinGain;
+  player.soloClear += 1;
+
+  log += `\n【結果】勝利！ コイン +${coinGain}\n`;
+
+  // 強化素材ドロップ（30%）
+  if (Math.random() < 0.3) {
+    player.upgradeStones += 1;
+    log += `強化素材を 1個 手に入れた！ （合計: ${player.upgradeStones}）\n`;
+  }
+
+  // 階層アップ（30%）
+  if (Math.random() < 0.3) {
+    player.floor += 1;
+    log += `覇者の塔の階層が 1 上がった！ → 現在: ${player.floor} 階\n`;
+  }
+
+  // 最高到達階層更新
+  if (player.floor > player.maxFloor) {
+    player.maxFloor = player.floor;
+    log += `最高到達階層を更新！ → ${player.maxFloor} 階\n`;
+  }
+
+  // ランク更新
+  const oldRank = player.rank;
+  updateRank(player);
+  if (oldRank !== player.rank) {
+    log += `階級が '${oldRank}' から '${player.rank}' に昇格した！\n`;
+  }
+
+  battle.finished = true;
+  logEl.textContent = log;
+  savePlayer(player);
+  updateUI(player);
+}
+
+// 敗北時処理
+function finishBattleDefeat(player, battle, log) {
+  const logEl = document.getElementById("solo-result");
+  const consolation = 3;
+  player.coins += consolation;
+  log += `\n【結果】敗北……。しかしわずかなコイン +${consolation} を拾った。\n`;
+
+  battle.finished = true;
+  logEl.textContent = log;
+  savePlayer(player);
+  updateUI(player);
+}
+
+// 「にげる」
+function handleBattleRun(player) {
+  const logEl = document.getElementById("solo-result");
+
+  if (!currentBattle || currentBattle.finished) {
+    logEl.textContent = "今は戦っていません。敵はいない……。";
+    return;
+  }
+
+  let log = logEl.textContent || "";
+  log += `\nあなたは戦いから逃げ出した！\n`;
+  log += `【結果】戦闘終了。特に報酬はありません。\n`;
+  currentBattle.finished = true;
 
   logEl.textContent = log;
   savePlayer(player);
   updateUI(player);
 }
 
-// ==== ガチャ処理 ====
+// ==== ガチャ ====
 
-// 共通：コイン消費チェック
+// コイン消費
 function spendCoins(player, cost) {
-  if (player.coins < cost) {
-    return false;
-  }
+  if (player.coins < cost) return false;
   player.coins -= cost;
   return true;
 }
 
-// 初級ガチャ（誰でも）
+// 初級ガチャ
 function handleBeginnerGacha(player) {
   const logEl = document.getElementById("gacha-result");
   const cost = 20;
@@ -412,9 +475,6 @@ function handleHashaGacha(player) {
 }
 
 // ==== 剣の強化 ====
-//
-// 強化素材 3個 → 攻撃力 +1 （シンプルな仕様）
-
 function handleUpgradeSword(player) {
   const logEl = document.getElementById("upgrade-result");
   const costStones = 3;
@@ -436,37 +496,64 @@ function handleUpgradeSword(player) {
   updateUI(player);
 }
 
-// ==== 初期化処理 ====
+// ==== 画面切り替え ====
+function setupScreenSwitching() {
+  const nav = document.getElementById("main-nav");
+  const buttons = nav.querySelectorAll("button[data-screen-target]");
+  const screens = document.querySelectorAll(".screen");
+
+  function showScreen(name) {
+    screens.forEach((sec) => {
+      sec.classList.toggle("active", sec.dataset.screen === name);
+    });
+    buttons.forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.screenTarget === name);
+    });
+  }
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      showScreen(btn.dataset.screenTarget);
+    });
+  });
+
+  // 初期表示はステータス
+  showScreen("status");
+}
+
+// ==== 初期化 ====
 window.addEventListener("DOMContentLoaded", () => {
   let player = loadPlayer();
-
-  // 将来のログイン連携までの間は、名前は固定のままでもOK
-  updateRank(player); // 念のためランクを最新化
+  updateRank(player);
   savePlayer(player);
   updateUI(player);
 
-  // ソロバトル
-  document.getElementById("solo-battle-btn").addEventListener("click", () => {
+  setupScreenSwitching();
+
+  // バトルコマンド
+  document.getElementById("battle-cmd-fight").addEventListener("click", () => {
     player = loadPlayer();
-    handleSoloBattle(player);
+    handleBattleFight(player);
   });
 
-  // ガチャ各種
+  document.getElementById("battle-cmd-run").addEventListener("click", () => {
+    player = loadPlayer();
+    handleBattleRun(player);
+  });
+
+  // ガチャ
   document.getElementById("gacha-beginner-btn").addEventListener("click", () => {
     player = loadPlayer();
     handleBeginnerGacha(player);
   });
-
   document.getElementById("gacha-normal-btn").addEventListener("click", () => {
     player = loadPlayer();
     handleNormalGacha(player);
   });
-
   document.getElementById("gacha-advanced-btn").addEventListener("click", () => {
     player = loadPlayer();
     handleAdvancedGacha(player);
   });
-
   document.getElementById("gacha-hasha-btn").addEventListener("click", () => {
     player = loadPlayer();
     handleHashaGacha(player);
@@ -478,10 +565,11 @@ window.addEventListener("DOMContentLoaded", () => {
     handleUpgradeSword(player);
   });
 
-  // データリセット（テスト用）
+  // データリセット
   document.getElementById("reset-data-btn").addEventListener("click", () => {
     if (confirm("本当にプレイヤーデータをリセットしますか？")) {
       player = createDefaultPlayer();
+      currentBattle = null;
       savePlayer(player);
       updateUI(player);
       document.getElementById("solo-result").textContent = "";

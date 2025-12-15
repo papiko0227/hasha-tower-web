@@ -1,0 +1,85 @@
+/* 画面切り替え（タブ） */
+#main-nav {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #181818;
+  border-bottom: 1px solid #333;
+}
+
+#main-nav button {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: #222;
+  color: #f8f8f8;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+#main-nav button.active {
+  background: #f1c40f;
+  color: #222;
+}
+
+/* 各画面 */
+.screen {
+  display: none;
+  margin-top: 16px;
+}
+
+.screen.active {
+  display: block;
+}
+
+/* バトルウィンドウ風 */
+.battle-status-window,
+.battle-command-window,
+.battle-log-window {
+  background: #000;
+  color: #f5f5f5;
+  border: 2px solid #f5f5f5;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-family: "MS PGothic", system-ui, sans-serif;
+}
+
+.battle-status-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.battle-status-box {
+  flex: 1 1 200px;
+}
+
+.battle-title {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.battle-command-window .battle-command-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.battle-command-window button {
+  min-width: 100px;
+}
+
+/* ガチャボタン並び */
+.gacha-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* ちょっとした説明文 */
+.hint {
+  font-size: 0.85rem;
+  color: #ccc;
+}
